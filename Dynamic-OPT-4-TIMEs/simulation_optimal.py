@@ -79,7 +79,7 @@ def Simulation_optimal(system_parameters, penalty_factor, smooth_factor,
         tA = t0 + min(params.tau_weeks, 0.5 * dt)
         t1 = t0 + dt
 
-        # 子段A：脉冲（守恒）
+        
         scale = dt / (tA - t0)
         uA = np.array([
             vI_k * scale if allow_I else 0.0,
@@ -93,7 +93,7 @@ def Simulation_optimal(system_parameters, penalty_factor, smooth_factor,
         solA = solve_ivp(ODE_system, (t0, tA), y0, args=(uA, deltaA, params),
                          method='LSODA', rtol=1e-6, atol=1e-8, max_step=(tA - t0) / 20, t_eval=t_evalA)
 
-        # 子段B：清除
+    
         yA = solA.y[:, -1]
         uB = np.zeros(2, dtype=float)
         deltaB = np.zeros(2 * N, dtype=float)
@@ -101,7 +101,7 @@ def Simulation_optimal(system_parameters, penalty_factor, smooth_factor,
         solB = solve_ivp(ODE_system, (tA, t1), yA, args=(uB, deltaB, params),
                          method='LSODA', rtol=1e-6, atol=1e-8, max_step=(t1 - tA) / 20, t_eval=t_evalB)
 
-        # 追加到全局轨迹（去重首点）
+ 
         t_seg = np.concatenate([solA.t, solB.t[1:]])
         x_seg = np.concatenate([solA.y[:n, :], solB.y[:n, 1:]], axis=1).T
         if T_all is None:
@@ -111,7 +111,7 @@ def Simulation_optimal(system_parameters, penalty_factor, smooth_factor,
             T_all = np.concatenate([T_all, t_seg[1:]])
             X_all = np.vstack([X_all, x_seg[1:, :]])
 
-        # 更新 y0 与全局区间索引
+ 
         y0 = solB.y[:, -1]
         before = number_points_interval[k - 1, 1] + 1 if k > 0 else 0
         after = T_all.size
