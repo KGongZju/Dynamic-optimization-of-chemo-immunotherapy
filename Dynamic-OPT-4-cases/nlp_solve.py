@@ -46,13 +46,13 @@ def NLP_solve(system_parameters_init,
 
     x0 = system_parameters_init.copy()
 
-    # --- 让初值满足斜率约束并落在边界内（避免一上来就 infeasible）---
+
     def _ramp_project(x):
         xv = x.copy()
-        # 先按上下界裁剪一次
+
         xv = np.minimum(np.maximum(xv, lb), ub)
         vI = xv[0::2].copy(); vM = xv[1::2].copy()
-        rhoI, rhoM = 0.6, 1.5  # 与 make_constraints 里一致
+        rhoI, rhoM = 0.6, 1.5  
         for k in range(1, number_intervals):
             d = vI[k] - vI[k-1]
             if d >  rhoI: vI[k] = vI[k-1] + rhoI
@@ -61,13 +61,13 @@ def NLP_solve(system_parameters_init,
             if d >  rhoM: vM[k] = vM[k-1] + rhoM
             if d < -rhoM: vM[k] = vM[k-1] - rhoM
         xv[0::2] = vI; xv[1::2] = vM
-        # 再次确保边界
+
         xv = np.minimum(np.maximum(xv, lb), ub)
         return xv
 
     x0 = _ramp_project(x0)
 
-    # 主力求解器：trust-constr（对非线性约束 + ODE 平滑目标更稳）
+
     method_primary = 'trust-constr'
     solver_options_tc = {
         'gtol': max(tolerance_NLP, 1e-8),
@@ -77,7 +77,7 @@ def NLP_solve(system_parameters_init,
         'verbose': 2,
         'finite_diff_rel_step': 1e-6,
     }
-    # 备用：SLSQP（只在主力未收敛/不可行时尝试）
+
     solver_options_slsqp = {'ftol': tolerance_NLP, 'maxiter': 300, 'disp': True, 'eps': 1e-8}
 
     # penalty initialization
@@ -95,7 +95,7 @@ def NLP_solve(system_parameters_init,
             return -float(J), -grad
         return float(J), grad
 
-    # fun 仅返回标量；jac 单独返回 1D 梯度。这可避免 code 8 的接口歧义。
+
     def fun_only(x):
         J, _ = NLP_objective(x, penalty_factor, smooth_factor,
                              x_initial_vector, number_intervals,
@@ -108,25 +108,24 @@ def NLP_solve(system_parameters_init,
                              t_initial, t_terminal)
         return np.asarray(g, dtype=float).reshape(-1)
 
-    # 零 Hessian（稀疏），trust-constr 会用其内部 BFGS 构造近似
+
     def hess_zero(_x):
         n = _x.size
         return csr_matrix((n, n))
 
-    # nlp_solve.py 中，minimize 调用前加：
     def make_constraints():
         from scipy.integrate import solve_ivp
         from ode_system import ODE_system
         from params import Params
         p = Params()
-        # === 共享缓存：避免同一 x 在目标/约束里重复积分 ===
+
         _cache = {"key": None, "states": None, "sens": None}
 
         def _key(x):
             return x.tobytes()
 
         def _permute_p2x_cols(A):
-            """把列从参数顺序 [I0..I{N-1}, M0..M{N-1}] 转为变量交错顺序 [I0,M0,I1,M1,...]."""
+
             Nloc = number_intervals
             idx = np.empty(2 * Nloc, dtype=int)
             idx[0::2] = np.arange(Nloc)
@@ -134,17 +133,12 @@ def NLP_solve(system_parameters_init,
             return A[:, idx]
 
         def _integrate_all(x):
-            """
-            跨 N 个区间只积分一次，返回：
-              states_list: 每个区间末的 y[:6]（长度 N）
-              sens_list:   每个区间末的敏感度矩阵 S_end，形状 (6 x 2N)，列为参数顺序 [I0.., M0..]
-            """
+
             kx = _key(x)
             if _cache["key"] == kx:
                 return _cache["states"], _cache["sens"]
 
             dt = (t_terminal - t_initial) / number_intervals
-            # y_vec 拼上敏感度展开（你现有的状态布局保持不变：前6是状态，后面是敏感度列展开，Fortran顺序）
             y_vec = np.concatenate([x_initial_vector, np.zeros(6 * 2 * number_intervals)])
             states_list, sens_list = [], []
 
@@ -185,30 +179,30 @@ def NLP_solve(system_parameters_init,
             _cache["sens"] = sens_list
             return states_list, sens_list
 
-        # --- 路径约束参数 ---
-        tau_max = 0.30     # 当期免疫毒性：K_L*(1 - e^{-M_k}) ≤ tau_max
-        L_min   = 0.005    # 每段末 L ≥ L_min
-        I_max   = 3.0      # I ≤ I_max
-        M_max   = 3.0      # M ≤ M_max
 
-        # --- 轻约束（化疗模式）：仅限制 I、M 上界，去掉 L_min 与当期毒性 ---
+        tau_max = 0.30  
+        L_min   = 0.005   
+        I_max   = 3.0   
+        M_max   = 3.0     
+
+
         def g_path(x):
             states_list, _ = _integrate_all(x)
             G = []
-            I_max = 10.0   # 放宽 I 上限（单位与状态一致）
-            M_max = 5.0    # 放宽 M 上限
+            I_max = 10.0   
+            M_max = 5.0    
             for y_end in states_list:
                 I, M = y_end[3], y_end[4]
-                # 约束顺序： I<=I_max, M<=M_max
+
                 G += [I_max - I, M_max - M]
             return np.array(G, dtype=float)
 
         def jac_path(x):
-            # 用每段末的敏感度矩阵构造解析雅可比（仅对 I、M）
+         
             _, sens_list = _integrate_all(x)
             Nloc = number_intervals
             rows = 2 * Nloc
-            J = np.zeros((rows, 2 * Nloc), dtype=float)  # 先按参数顺序
+            J = np.zeros((rows, 2 * Nloc), dtype=float) 
 
             for k, S_end in enumerate(sens_list):
                 r0 = 2 * k
@@ -217,10 +211,10 @@ def NLP_solve(system_parameters_init,
                 # d(M_max - M)/dp = - dM/dp
                 J[r0 + 1, :] = - S_end[4, :]
 
-            # 变成优化变量的交错顺序
+
             return _permute_p2x_cols(J)
 
-        # --- 仅做“总剂量上限”（允许少用甚至不用） ---
+
         dt = (t_terminal - t_initial) / number_intervals
         maskI = np.zeros(number_intervals, dtype=bool); maskI[params.K_I_indices] = True
         maskM = np.zeros(number_intervals, dtype=bool); maskM[params.K_M_indices] = True
@@ -250,20 +244,20 @@ def NLP_solve(system_parameters_init,
             maskM = np.zeros(Nloc, dtype=bool);
             maskM[params.K_M_indices] = True
 
-            # 参数顺序的雅可比（2 行 × 2N 列）
+
             J = np.zeros((2, 2 * Nloc), dtype=float)
-            # 行0：cap_I - sum(vI*dt) 的导数 = -dt（只在允许的 I 段）
+
             for k in range(Nloc):
                 if maskI[k]:
                     J[0, k] = -dt
-            # 行1：cap_M - sum(vM*dt) 的导数 = -dt（只在允许的 M 段）
+
             for k in range(Nloc):
                 if maskM[k]:
                     J[1, Nloc + k] = -dt
 
             return _permute_p2x_cols(J)
 
-        # --- ramp 约束：相邻段变化不超过阈值 ---
+
         rhoI = 0.6
         rhoM = 1.5
         def g_ramp(x):
@@ -277,7 +271,7 @@ def NLP_solve(system_parameters_init,
         def jac_ramp(x):
             Nloc = number_intervals
             rows = 4 * (Nloc - 1)
-            J = np.zeros((rows, 2 * Nloc), dtype=float)  # 已是变量交错顺序
+            J = np.zeros((rows, 2 * Nloc), dtype=float) 
 
             r = 0
             for k in range(1, Nloc):
@@ -305,13 +299,13 @@ def NLP_solve(system_parameters_init,
 
             return J
 
-        # SLSQP 风格（dict）约束
+
         cons_slsqp = [
             {'type': 'ineq', 'fun': g_path},
             {'type': 'ineq', 'fun': g_dose_cap},
             {'type': 'ineq', 'fun': g_ramp},
         ]
-        # trust-constr 风格约束（有限差分雅可比）
+
         cons_tc = [
             NonlinearConstraint(g_path, 0.0, np.inf, jac=jac_path),
             NonlinearConstraint(g_dose_cap, 0.0, np.inf, jac=jac_dose_cap),
@@ -353,7 +347,7 @@ def NLP_solve(system_parameters_init,
                 pass
         return min_g
 
-    # 简单的约束最小残差检查函数保持不变
+
     min_g = _min_constraint_residual(res.x, cons_slsqp) if res.success else -np.inf
     if (not res.success) or (min_g < -1e-6):
         print('[INFO] Primary trust-constr 未收敛或不可行；切换 SLSQP 兜底...')
