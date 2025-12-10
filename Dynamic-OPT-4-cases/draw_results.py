@@ -61,7 +61,7 @@ def draw_results(results_dict):
     control_parameters_plot = results_dict['control_parameters_plot']
     xt_axis = results_dict['xt_axis']
     x_optimal = results_dict['x_optimal']
-    # 防御式处理：剔除 NaN/Inf，保证能完整绘制
+    
     valid = np.isfinite(xt_axis) & np.all(np.isfinite(x_optimal), axis=1)
     xt_axis = xt_axis[valid]
     x_optimal = x_optimal[valid, :]
@@ -76,24 +76,23 @@ def draw_results(results_dict):
     t_initial = results_dict.get('t_initial', ut_axis_stairs[0])
     t_terminal = results_dict.get('t_terminal', ut_axis_stairs[-1])
 
-    # —— 读取可选的解释性标签（若未提供，则按论文默认映射）——
-    # 控制变量（给药速率）：建议 vI（ICI 输入）、vM（化疗输入）
+   
     default_control_labels = (
         ['u(t)'] if number_control_variables == 1
         else [r'vI (ICI 给药速率)', r'vM (化疗给药速率)'][:number_control_variables]
     )
     control_labels = results_dict.get('control_labels', default_control_labels)
 
-    # 状态变量：按论文 ODE 模型（Xs, Xr, L, I, M, μ）
+    # 状态变量
     default_state_labels_full = [
         r'$X_s$ (敏感肿瘤细胞)',
         r'$X_r$ (耐药肿瘤细胞)',
         r'$L$ (CD8$^+$ T 细胞)',
         r'$I$ (ICI 浓度)',
         r'$M$ (化疗药物浓度)',
-        r'$J$ (累计目标)'  # ← 与状态向量一致
+        r'$J$ (累计目标)'  
     ]
-    # 按实际维度裁剪
+    
     default_state_labels = default_state_labels_full[:number_state_variables_original]
     state_labels = results_dict.get('state_labels', default_state_labels)
 
@@ -130,7 +129,7 @@ def draw_results(results_dict):
     plt.figure(3)
     for i in range(number_state_variables_original):
         plt.plot(xt_days, x_optimal[:, i], label=state_labels[i])
-        # 在曲线末端做轻量标注，增强可读性
+        
         try:
             plt.annotate(
                 state_labels[i],
@@ -147,7 +146,7 @@ def draw_results(results_dict):
     plt.ylabel('State variables')
     plt.grid(True)
 
-    # 取化疗的连续画线用的时间点（你已有 ut_days_plot）
+   
     # Mark the four chemo cycles at the START of each cycle using params.K_M_indices
     chemo_idx = getattr(params, 'K_M_indices', [0, 1, 2, 3])
     chemo_times = []
