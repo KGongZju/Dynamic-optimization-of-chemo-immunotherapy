@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Main driver for the improved SQP-based optimal control,
-translated from the MATLAB script.
+Main driver for the improved SQP-based optimal control
 
-Author: [Your Name]
-Dependencies: numpy
 """
 
 import numpy as np
