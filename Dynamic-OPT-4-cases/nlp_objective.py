@@ -26,26 +26,26 @@ def NLP_objective(system_parameters, penalty_factor, smooth_factor,x_initial_vec
 
     # Time interval for each step
     t_interval = (t_final - t_initial) / number_intervals
-    tau = params.tau_weeks  # 脉冲窗口（周）
+    tau = params.tau_weeks  
 
     # Loop over intervals and integrate
     for k in range(number_intervals):
-        # 取该段控制（仍用“输注速率变量”）
+        
         j1 = 2 * k
         j2 = j1 + 2
         vI_k, vM_k = system_parameters[j1:j2]
 
-        # 化疗仅前四段允许：其余段强制为 0，并屏蔽灵敏度
+        
         allow_M = (k in params.K_M_indices)
         allow_I = (k in params.K_I_indices)
 
-        # 该段时间
+      
         t0 = t_initial + k * t_interval
-        tA = t0 + min(tau, 0.5 * t_interval)  # 防御：tau 不超过半段
+        tA = t0 + min(tau, 0.5 * t_interval)  
         t1 = t_initial + (k + 1) * t_interval
 
-        # —— 子段A：脉冲 —— #
-        # 等剂量守恒： v_pulse * tau = v * (t_interval)
+        
+      
         scale = (t_interval / (tA - t0))
         uA = np.array([
             vI_k * scale if allow_I else 0.0,
@@ -67,10 +67,10 @@ def NLP_objective(system_parameters, penalty_factor, smooth_factor,x_initial_vec
         if (not solA.success) or (not np.isfinite(solA.y).all()):
             return 1e9, np.zeros_like(system_parameters)
 
-        # —— 子段B：清除（无输入） —— #
+   
         yA = solA.y[:, -1]
         uB = np.zeros(2, dtype=float)
-        deltaB = np.zeros(number_system_parameters, dtype=float)  # 子段B对 v_k 的敏感性为 0
+        deltaB = np.zeros(number_system_parameters, dtype=float) 
         solB = solve_ivp(
             ODE_system, (tA, t1), yA,
             args=(uB, deltaB, params),
@@ -79,7 +79,7 @@ def NLP_objective(system_parameters, penalty_factor, smooth_factor,x_initial_vec
         if (not solB.success) or (not np.isfinite(solB.y).all()):
             return 1e9, np.zeros_like(system_parameters, dtype=float)
 
-        # 更新 y0
+        
         y0 = solB.y[:, -1]
 
     # Extract state variables from the final state
@@ -97,9 +97,6 @@ def NLP_objective(system_parameters, penalty_factor, smooth_factor,x_initial_vec
     # dJ/dx is [0, 0, 1, 0, 1]
     dJdx = np.zeros(number_state_variables, dtype=float)
     dJdx[5] = 1.0
-    # Chain rule: dJ/dp = dJ/dx * dx/dp
-    # 原梯度顺序是参数顺序 [vI_0..vI_{N-1}, vM_0..vM_{N-1}]
-    # 需要重排为优化变量的交错顺序 [vI_0, vM_0, vI_1, vM_1, ...]
     N = number_intervals
     g_p = (dJdx @ s0_matrix).reshape(-1)
     g_x = np.empty_like(g_p)
