@@ -186,25 +186,25 @@ def write_excel_report(case_outputs: dict, outfile="exports/four_cases_report.xl
     print(f"[OK] Excel report written: {outfile}")
 
 if __name__ == "__main__":
-    # (a) extremely cold —— 化疗主导，ICI 很少或不用
+    # (a) extremely cold 
     apply_params(
         mu0=1.0, j_L=0.10, q=0.05, h_L=0.010, a_s=0.010, a_r=0.016, K_L=0.35,
-        w2=3.0, w3=0.8, w4=2.8,                       # ICI 更贵
-        D_I_cap_units=1.0, D_M_cap_units=4.0,         # ICI 仅 1 个单位；Chemo 4 个单位
+        w2=3.0, w3=0.8, w4=2.8,                       
+        D_I_cap_units=1.0, D_M_cap_units=4.0,        
         tau_days=3.0, K_I_indices=list(range(10))
     )
     out_a = run_one("case_a_extremely_cold", np.array([1.0, 0.10, 0.008, 0.0, 0.0, 0.0]))
 
-    # (b) hot —— ICI 主导，化疗很少
+    # (b) hot 
     apply_params(
         mu0=0.6, j_L=0.25, q=0.015, h_L=0.002, a_s=0.010, a_r=0.012, K_L=0.22,
-        w2=3.0, w3=0.8, w4=0.6,                        # ICI 更便宜
-        D_I_cap_units=24.0, D_M_cap_units=3.0,          # ICI 上限大、Chemo 小
+        w2=3.0, w3=0.8, w4=0.6,                      
+        D_I_cap_units=24.0, D_M_cap_units=3.0,         
         tau_days=3.0, K_I_indices=list(range(10))
     )
     out_b = run_one("case_b_hot", np.array([1.0, 0.06, 0.030, 0.0, 0.0, 0.0]))
 
-    # (c) cold —— 组合治疗（中庸）
+    # (c) cold 
     apply_params(
         mu0=0.9, j_L=0.18, q=0.03, h_L=0.005, a_s=0.010, a_r=0.014, K_L=0.28,
         w2=3.0, w3=0.8, w4=1.6,
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     )
     out_c = run_one("case_c_cold", np.array([1.0, 0.10, 0.010, 0.0, 0.0, 0.0]))
 
-    # (d) cold + high resistant growth —— 化疗略偏重
+    # (d) cold + high resistant growth
     apply_params(
         mu0=0.9, j_L=0.18, q=0.03, h_L=0.005, a_s=0.010, a_r=0.020, K_L=0.28,
         w2=3.0, w3=0.8, w4=2.0,
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     )
     out_d = run_one("case_d_cold_high_ar", np.array([1.0, 0.10, 0.010, 0.0, 0.0, 0.0]))
 
-    # 汇总到一个 Excel 报告
+
     all_outs = {
         "case_a_extremely_cold": out_a,
         "case_b_hot": out_b,
