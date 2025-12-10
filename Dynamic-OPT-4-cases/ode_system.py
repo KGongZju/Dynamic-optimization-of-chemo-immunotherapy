@@ -2,24 +2,7 @@ import numpy as np
 from params import Params
 params = Params()
 def ODE_system(t, y, u, delta, params):
-    """
-    TIME 模型的 ODE 系统 + 积分目标 J + 对两个控制变量分段参数的完整灵敏度
 
-    参数签名与原始 ODE_system 保持一致：
-      t      – 当前时间
-      y      – 状态与灵敏度拼接的向量，长度 = 6 + 6*(2*N)
-      u      – 当前分段的控制向量 [vI, vM]
-      delta  – one-hot 向量，长度 = 2*N，delta[j]=1 表示第 j 个参数 p_j 在此段生效
-      params – 参数对象，属性包括:
-               a_s,a_r,alpha_sr,alpha_rs,X_max,
-               d,l_s,l,K,mu0,p,
-               m_L,r,j_C,k_C,j_L,k_L,j_M,k_M,L_max,
-               h_L,eta_RL,q,u_bio,K_L,
-               gamma_I,gamma_M,
-               gamma_vI,gamma_vM,
-               N  # 分段数
-    """
-    # --- 1) 维度与拆包 ---
     n = 6
     P = len(delta)  # =2*N
     Xs, Xr, L, I, M, J = y[:n]
@@ -31,7 +14,7 @@ def ODE_system(t, y, u, delta, params):
     I_pos  = min(max(I, 0.0), 1.0)
     M_pos  = max(M, 0.0)
     X = Xs_pos + Xr_pos
-    # --- 2) 辅助量 μ, DL, DM 及其导数 ---
+
     eps = 1e-8
     # raw fraction of CD8+ T suppressed by checkpoints (affected by I and chemo)
     mu_raw = params.mu0 * (1 - I_pos) * (1 + params.p * (1 - np.exp(-M_pos)))
@@ -65,7 +48,7 @@ def ODE_system(t, y, u, delta, params):
     dDM_dXs = 0.0
     dDM_dM = params.K_xs * np.exp(-M_pos) if M_pos > 0.0 else 0.0
 
-    # --- 3) 核心动力学 f1..f5 和积分目标 f6 ---
+
     # Sensitive tumor: logistic growth minus immune kill and chemo kill
     Phi_comp = (Xs + params.alpha_sr * Xr) / params.X_max
     f1 = params.a_s * Xs * (1 - Phi_comp) - DL * Xs - DM * Xs
@@ -73,7 +56,7 @@ def ODE_system(t, y, u, delta, params):
     # Resistant tumor: logistic growth minus immune kill
     Psi_comp = (Xr + params.alpha_rs * Xs) / params.X_max
     f2 = params.a_r * Xr * (1 - Psi_comp) - DL * Xr
-    # 肿瘤—免疫相互作用 U
+
     T1 = params.j_C * X / (params.k_C + X + eps)
     T2 = params.j_L * DL * X / (params.k_L + DL * X + eps)
     den3 = params.k_M + DM * Xs_pos
@@ -89,19 +72,18 @@ def ODE_system(t, y, u, delta, params):
 
     f4 = - params.gamma_I * I + vI
     f5 = - params.gamma_M * M + vM
-    # 运行成本：可按需要修改，这里示例为肿瘤负担 + 控制能量
-    # 最小化：w2*(Xs+Xr) + w3*vM + w4*vI - w1*L
+
     f6 = (params.w2 * (Xs + Xr)
           + params.w3 * vM
           + params.w4 * vI
           - params.w1 * L)
 
-    # --- 4) 填充主状态导数 ---
+
     dydt = np.zeros(n + P * n)
     dydt[:n] = [f1, f2, f3, f4, f5, f6]
 
-    # --- 5) 计算 ∂f_i/∂x_k 和 ∂f_i/∂vI,∂f_i/∂vM ---
-    # f1 对各状态的偏导（logistic growth minus DL*Xs minus DM*Xs）
+
+
     # ∂Phi_comp/∂Xs = 1/X_max, ∂Phi_comp/∂Xr = alpha_sr/X_max
     df1_dXs = ( params.a_s * (1 - Phi_comp)
                - params.a_s * Xs * (1.0/params.X_max)
@@ -113,7 +95,7 @@ def ODE_system(t, y, u, delta, params):
     df1_dL  = - Xs * dDL_dL
     df1_dI  = - Xs * dDL_dI
     df1_dM  = - Xs * dDL_dM - Xs * dDM_dM
-    # f2 对各状态的偏导（logistic growth minus DL*Xr）
+
     # ∂Psi_comp/∂Xs = alpha_rs/X_max, ∂Psi_comp/∂Xr = 1/X_max
     df2_dXs = - params.a_r * Xr * (params.alpha_rs / params.X_max) \
               - Xr * dDL_dXs
@@ -179,7 +161,7 @@ def ODE_system(t, y, u, delta, params):
     df6_dvI  = params.w4
     df6_dvM  = params.w3
 
-    # --- 6) 灵敏度方程（6 行／块，共 P 块） ---
+
     for j in range(P):
         base = n + j * n
         s = y[base:base + n]
@@ -191,12 +173,12 @@ def ODE_system(t, y, u, delta, params):
         ds[1] = df2_dXs * s[0] + df2_dXr * s[1] + df2_dL * s[2] + df2_dI * s[3] + df2_dM * s[4]
         # ds3
         ds[2] = df3_dXs * s[0] + df3_dXr * s[1] + df3_dL * s[2] + df3_dI * s[3] + df3_dM * s[4]
-        # ds4 对 vI_j 有直接项（j< N）
+
         half = P // 2
         ds[3] = df4_dI * s[3] + (δ if j < half else 0)
-        # ds5 对 vM_j 有直接项（j>=N）
+
         ds[4] = df5_dM * s[4] + (δ if j >= half else 0)
-        # ds6（目标）对 vI_j/vM_j 均有直接项
+
         ds6 = ( df6_dXs*s[0]
                + df6_dXr*s[1]
                + df6_dL *s[2]
