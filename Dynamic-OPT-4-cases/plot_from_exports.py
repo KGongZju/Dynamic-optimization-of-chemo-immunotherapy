@@ -7,11 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def stairs_from_intervals(start_day, end_day, values):
-    """
-    根据每段起止(day) + 段值 -> 生成 step(where='post') 需要的 (t_stairs, v_stairs)
-    t_stairs: [start0, start1, ..., startN-1, endN-1]  (长度 N+1)
-    v_stairs: [v0,     v1,     ..., vN-1,              vN-1] (长度 N+1)
-    """
+
     start_day = np.asarray(start_day)
     end_day   = np.asarray(end_day)
     values    = np.asarray(values)
@@ -29,7 +25,7 @@ def _require_cols(df: pd.DataFrame, must_have):
 def plot_from_exports(prefix="ours_run1", outdir="exports",
                       save_path="figure_from_exports.png",
                       log_tumor=False, shade_chemo=True):
-    # ---------- 1) 路径 ----------
+
     f_states  = os.path.join(outdir, f"{prefix}_timeseries_states.csv")
     f_sched   = os.path.join(outdir, f"{prefix}_controls_schedule.csv")
     f_markers = os.path.join(outdir, f"{prefix}_chemo_markers_days.csv")
@@ -39,13 +35,13 @@ def plot_from_exports(prefix="ours_run1", outdir="exports",
         if not os.path.exists(f):
             raise FileNotFoundError(f"Missing export file: {f}")
 
-    # ---------- 2) 读取数据（pandas，更健壮） ----------
+
     states = pd.read_csv(f_states)
-    # 统一列名（容错）
+
     ren = {"t": "day", "days": "day", "time_day": "day"}
     states = states.rename(columns={k: v for k, v in ren.items() if k in states.columns})
 
-    # 自动生成 X_total
+
     if "X_total" not in states.columns and {"Xs","Xr"}.issubset(states.columns):
         states["X_total"] = states["Xs"] + states["Xr"]
 
@@ -58,7 +54,7 @@ def plot_from_exports(prefix="ours_run1", outdir="exports",
 
     # schedule: start_day,end_day,mid_day,vI,vM,doseI_week,doseM_week,is_chemo,interval
     sched = pd.read_csv(f_sched)
-    # 兼容大小写/不同命名
+
     sched = sched.rename(columns={
         "Interval":"interval", "v_I":"vI", "v_M":"vM",
         "doseI_w":"doseI_week", "doseM_w":"doseM_week"
@@ -75,19 +71,19 @@ def plot_from_exports(prefix="ours_run1", outdir="exports",
 
     # chemo markers
     mk_df = pd.read_csv(f_markers)
-    # 允许列名 day / 任意以 day 开头
+
     day_col = next((c for c in mk_df.columns if c.lower().startswith("day")), mk_df.columns[0])
     chemo_markers = mk_df[day_col].to_numpy()
 
-    # summary（可用于校验横轴是否 ~700 days）
+    # summary
     with open(f_summary, "r", encoding="utf-8") as f:
         summary = json.load(f)
 
-    # ---------- 3) 生成阶梯数据 ----------
+
     tI_stairs, vI_stairs = stairs_from_intervals(start_day, end_day, vI)
     tM_stairs, vM_stairs = stairs_from_intervals(start_day, end_day, vM)
 
-    # ---------- 4) 作图 ----------
+
     fig, axes = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
 
     # Top: Tumor burden
@@ -101,7 +97,6 @@ def plot_from_exports(prefix="ours_run1", outdir="exports",
     ax.grid(True)
     ax.legend()
 
-    # 标注 chemo 段（可选）
     if shade_chemo:
         for k in range(len(start_day)):
             if is_chemo[k] == 1:
@@ -138,7 +133,7 @@ def plot_from_exports(prefix="ours_run1", outdir="exports",
     for t in chemo_markers:
         ax.axvline(t, linestyle='--', linewidth=1.0, alpha=0.8)
 
-    # x 轴范围：按状态时间序列范围
+
     ax.set_xlim([day.min(), day.max()])
 
     fig.tight_layout()
@@ -147,7 +142,7 @@ def plot_from_exports(prefix="ours_run1", outdir="exports",
     return save_path
 
 if __name__ == "__main__":
-    # 默认从 'exports/ours_run1_*.csv' 读取
+
     plot_from_exports(prefix="ours_run1", outdir="exports",
                       save_path="figure_from_exports.png",
                       log_tumor=False, shade_chemo=True)
