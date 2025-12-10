@@ -4,9 +4,7 @@
 Main driver for the improved SQP-based optimal control,
 translated from the MATLAB script.
 
-Author: [Your Name]
-Dependencies: numpy
-"""
+
 
 import numpy as np
 from nlp_solve import NLP_solve
@@ -48,18 +46,14 @@ flag_time_scaling= False    # Whether to apply time scaling
 # User input part 3: Mathematical model
 t_initial = 0.0             # Initial time
 t_terminal = 30.0          # Terminal time
-t_pre       = 57.0        # 约等于 400/7，让首个给药出现在 ~day 400
-t_plot_end  = 100.0       # 100 周 ≈ 700 天
+t_pre       = 57.0        
+t_plot_end  = 100.0       
 
-#   Xs(0)=1e6 (敏感肿瘤细胞)
-#   Xr(0)=1e5 (耐药肿瘤细胞)
-#   L(0)=1e4  (CD8+ T 细胞)
-#   I(0)=0    (ICI 药物初始)
-#   M(0)=0    (化疗药物初始)
+
 x_initial_vector = np.array([1, 0.1, 0.01, 0.0, 0.0, 0.0])
 
 # Control bounds: shape (number_control_variables, number_intervals)
-# vI ∈ [0,1]（或 {0,1}），vM ∈ [0,5]
+
 u_lower = np.vstack([  # shape (2, N)
     np.zeros(number_intervals),      # vI ≥ 0
     np.zeros(number_intervals)       # vM ≥ 0
@@ -69,7 +63,7 @@ u_upper = np.vstack([
     5*np.ones(number_intervals)      # vM ≤ 5
 ])
 
-# 仅允许前四段化疗：对其余段强制上界为 0
+
 last_chemo = params.K_M_indices[-1] if len(params.K_M_indices) > 0 else -1
 if number_intervals > last_chemo + 1:
     u_upper[1, last_chemo+1:] = 0.0
@@ -90,12 +84,12 @@ p_upper = None
 # ----------------------------------------
 # User input part 4: Initial guess
 u_guess = np.vstack([
-     0.6 * np.ones(number_intervals),   # vI 初始 0.6（不贴上界）
-     2.5 * np.ones(number_intervals)    # vM 初始 2.5（不贴上界）
+     0.6 * np.ones(number_intervals),  
+     2.5 * np.ones(number_intervals)    
  ])
-# 初值与允许窗口一致
-u_guess[1, params.K_M_indices[-1]+1:] = 0.0   # chemo 仅前4段
-u_guess[0, params.K_I_indices[-1]+1:] = 0.0   # ICI 仅前6段
+
+u_guess[1, params.K_M_indices[-1]+1:] = 0.0  
+u_guess[0, params.K_I_indices[-1]+1:] = 0.0   
 
 t_terminal_guess = t_terminal
 p_guess = np.empty((0,))
@@ -144,7 +138,7 @@ if __name__ == "__main__":
                   u_guess,
                   t_terminal_guess,
                   p_guess)
-    print("🏁 NLP_solve finished. opt_params[0:2] =", system_parameters_optimal[:2])
+    print("NLP_solve finished. opt_params[0:2] =", system_parameters_optimal[:2])
     # Simulate optimal trajectory
     xt_axis, x_optimal, number_points_interval = Simulation_optimal(
         system_parameters_optimal,
@@ -179,7 +173,7 @@ if __name__ == "__main__":
     # Plot results
     paths = export_results_package(
         results,
-        prefix="ours_run1",      # 你可改成病人ID或策略名
+        prefix="ours_run1",     
         outdir="exports"
     )
     print("Exported files:", paths)
